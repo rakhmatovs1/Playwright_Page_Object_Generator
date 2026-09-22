@@ -89,6 +89,16 @@ That's it! ✅ You now have a ready-to-use Page Object.
 pip install -r requirements.txt
 ```
 
+### Operation Modes
+
+| Mode | Command | Use Case | Requires |
+|------|---------|----------|----------|
+| **Interactive** | `main.py -I` | Beginners, one-off generation | Nothing |
+| **File → File** | `main.py -i in.html -c Name -o out.py` | Production, CI/CD | `-i -c -o` |
+| **File → Stdout** | `main.py -i in.html -c Name` | Preview code | `-i -c` |
+| **Stdin → File** | `cat in.html \| main.py -c Name -o out.py` | Pipelines | `-c -o` |
+| **Stdin → Stdout** | `cat in.html \| main.py -c Name` | Command chains | `-c` |
+
 ### Command Line Examples
 
 ```bash
@@ -141,9 +151,7 @@ generator.save_to_file(po_code, 'login_page.py')
 
 ## Learn More
 
-📖 **Architecture & design:** See `CLAUDE.md`  
-📊 **All operation modes:** See `MODES_DEMO.md`  
-✅ **Project status:** See `PROJECT_STATUS.md`
+📖 **Architecture & design:** See `CLAUDE.md`
 
 ## Testing
 
