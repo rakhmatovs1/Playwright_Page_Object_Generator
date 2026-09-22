@@ -1,0 +1,15 @@
+# Core Dependencies
+beautifulsoup4>=4.11.0      # HTML parsing
+html5lib>=1.1               # Flexible HTML5 parser
+playwright>=1.40.0          # Playwright SDK for reference
+
+# Development & Testing
+pytest>=7.4.0               # Testing framework
+pytest-cov>=4.1.0           # Coverage reports
+black>=23.0.0               # Code formatting
+flake8>=6.0.0               # Linting
+mypy>=1.5.0                 # Type checking
+
+# Code Generation & CLI
+jinja2>=3.1.0               # Template rendering for Page Object code
+click>=8.1.0                # CLI framework

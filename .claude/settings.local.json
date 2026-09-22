@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_utils.py::TestNamingSnakeCase -v)",
+      "Bash(python -m pytest tests/test_parser.py -v)"
+    ]
+  }
+}

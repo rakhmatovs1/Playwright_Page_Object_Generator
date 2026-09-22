@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Page</title>
+</head>
+<body>
+    <div class="login-container">
+        <form id="loginForm" class="auth-form">
+            <h1>Sign In</h1>
+
+            <label for="email">Email Address</label>
+            <input id="email" type="email" placeholder="Enter your email" required>
+
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="Enter your password" required>
+
+            <input type="checkbox" id="remember" aria-label="Remember me">
+            <label for="remember">Remember me</label>
+
+            <button type="submit" class="btn btn-primary">Sign In</button>
+            <button type="reset" aria-label="Clear form">Clear</button>
+
+            <a href="/forgot-password">Forgot password?</a>
+            <a href="/signup">Don't have an account? Sign up</a>
+        </form>
+
+        <div class="error-message" role="alert" style="display: none;"></div>
+    </div>
+</body>
+</html>
