@@ -222,4 +222,4 @@ MIT
 - snake_case property naming
 - PEP 8 formatted output
 - CLI with file and stdin support
-- 154 comprehensive tests
+- 261 comprehensive tests
