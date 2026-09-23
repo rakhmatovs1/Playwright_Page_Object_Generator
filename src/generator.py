@@ -25,15 +25,11 @@ class PageObjectGenerator:
             Generated Python code as string
 
         Raises:
-            ValueError: If class_name is not in PascalCase
+            ValueError: If class_name is invalid
         """
-        if not self.validate_class_name(class_name):
-            raise ValueError(f"class_name must be in PascalCase (got: {class_name})")
+        self.validate_class_name(class_name)
 
-        # Parse HTML
         elements = self.parser.parse(html)
-
-        # Generate Page Object code
         code = self._generate_class_code(class_name, elements)
 
         return code
@@ -76,27 +72,39 @@ class PageObjectGenerator:
 
         Returns:
             True if valid PascalCase
+
+        Raises:
+            ValueError: If class_name is invalid with specific error message
         """
         if not class_name:
-            return False
+            raise ValueError("class_name cannot be empty")
 
-        # Must start with uppercase letter
-        if not class_name[0].isupper():
-            return False
+        if not isinstance(class_name, str):
+            raise ValueError(f"class_name must be string, got {type(class_name).__name__}")
 
-        # Must contain only alphanumeric characters
-        if not class_name.replace("_", "").isalnum():
-            return False
+        if len(class_name) < 2:
+            raise ValueError("class_name must be at least 2 characters long")
 
-        # Should not have underscores (snake_case style)
+        if len(class_name) > 100:
+            raise ValueError("class_name must not exceed 100 characters")
+
+        for char in class_name:
+            if ord(char) > 127:
+                raise ValueError(f"class_name must contain only Latin letters and numbers, found non-Latin character: '{char}'")
+
+        first_char = class_name[0]
+        if not first_char.isalpha():
+            raise ValueError(f"class_name must start with a letter, got: '{first_char}'")
+
+        if not first_char.isupper():
+            raise ValueError(f"class_name must start with uppercase letter (PascalCase), got: '{first_char}'")
+
         if "_" in class_name:
-            return False
+            raise ValueError("class_name must use PascalCase (no underscores)")
 
-        # Should be at least 2 chars and follow pattern: Uppercase followed by letters/numbers
-        # PascalCase: first letter uppercase, then can have uppercase letters
         for i, char in enumerate(class_name):
-            if not (char.isalnum()):
-                return False
+            if not char.isalnum():
+                raise ValueError(f"class_name contains invalid character '{char}' at position {i}")
 
         return True
 

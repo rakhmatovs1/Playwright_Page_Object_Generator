@@ -26,20 +26,79 @@ class TestGeneratorClassStructure:
         # Valid PascalCase names
         assert generator.validate_class_name("LoginPage") is True
         assert generator.validate_class_name("CheckoutPage") is True
-
-        # Invalid names
-        assert generator.validate_class_name("loginpage") is False
-        assert generator.validate_class_name("login_page") is False
         assert generator.validate_class_name("LoginPage123") is True
+
+    def test_validate_class_name_lowercase_rejected(self):
+        """Should reject lowercase class names."""
+        generator = PageObjectGenerator()
+        with pytest.raises(ValueError, match="must start with uppercase"):
+            generator.validate_class_name("loginpage")
+
+    def test_validate_class_name_with_underscore_rejected(self):
+        """Should reject snake_case names."""
+        generator = PageObjectGenerator()
+        with pytest.raises(ValueError, match="PascalCase"):
+            generator.validate_class_name("login_page")
 
     def test_class_name_starts_with_letter(self):
         """Class name should start with letter."""
         generator = PageObjectGenerator()
-
         assert generator.validate_class_name("LoginPage") is True
-        assert generator.validate_class_name("_LoginPage") is False
-        assert generator.validate_class_name("123Invalid") is False
-        assert generator.validate_class_name("1Page") is False
+
+    def test_class_name_starts_with_digit_rejected(self):
+        """Class name starting with digit should be rejected."""
+        generator = PageObjectGenerator()
+        with pytest.raises(ValueError, match="must start with a letter"):
+            generator.validate_class_name("123Invalid")
+
+        with pytest.raises(ValueError, match="must start with a letter"):
+            generator.validate_class_name("1Page")
+
+    def test_class_name_with_special_chars_rejected(self):
+        """Class name with special characters should be rejected."""
+        generator = PageObjectGenerator()
+        with pytest.raises(ValueError, match="invalid character"):
+            generator.validate_class_name("LoginPage@")
+
+        with pytest.raises(ValueError, match="invalid character"):
+            generator.validate_class_name("Login-Page")
+
+    def test_class_name_with_non_latin_rejected(self):
+        """Class name with non-Latin characters should be rejected."""
+        generator = PageObjectGenerator()
+        with pytest.raises(ValueError, match="only Latin letters"):
+            generator.validate_class_name("ЕуыеЗфпу")
+
+        with pytest.raises(ValueError, match="only Latin letters"):
+            generator.validate_class_name("测试Page")
+
+        with pytest.raises(ValueError, match="only Latin letters"):
+            generator.validate_class_name("LoginПаж")
+
+    def test_class_name_empty_rejected(self):
+        """Empty class name should be rejected."""
+        generator = PageObjectGenerator()
+        with pytest.raises(ValueError, match="cannot be empty"):
+            generator.validate_class_name("")
+
+    def test_class_name_too_short_rejected(self):
+        """Class name with 1 character should be rejected."""
+        generator = PageObjectGenerator()
+        with pytest.raises(ValueError, match="at least 2 characters"):
+            generator.validate_class_name("A")
+
+    def test_class_name_too_long_rejected(self):
+        """Class name exceeding 100 characters should be rejected."""
+        generator = PageObjectGenerator()
+        long_name = "A" * 101
+        with pytest.raises(ValueError, match="not exceed 100"):
+            generator.validate_class_name(long_name)
+
+    def test_class_name_underscore_at_start_rejected(self):
+        """Class name starting with underscore should be rejected."""
+        generator = PageObjectGenerator()
+        with pytest.raises(ValueError, match="must start with a letter"):
+            generator.validate_class_name("_LoginPage")
 
     def test_generate_class_docstring(self, simple_html):
         """Should generate class docstring."""

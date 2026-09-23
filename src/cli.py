@@ -115,11 +115,10 @@ def main(
             sys.exit(2)
 
         # Validate class name
-        if not generator.validate_class_name(class_name):
-            click.echo(
-                f"Error: class_name must be in PascalCase (got: {class_name})",
-                err=True
-            )
+        try:
+            generator.validate_class_name(class_name)
+        except ValueError as e:
+            click.echo(f"Error: Invalid class name - {str(e)}", err=True)
             sys.exit(1)
 
         # Read input
