@@ -1,9 +1,9 @@
 """Code generation module - generates Playwright Page Object classes."""
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from src.parser import HTMLParser
 from src.locator_selector import LocatorSelector
-from src.utils import generate_name_from_attributes, handle_duplicate_names
+from src.utils import generate_name_from_attributes, handle_duplicate_names, is_meaningful_container
 
 
 class PageObjectGenerator:
@@ -141,97 +141,27 @@ class PageObjectGenerator:
         return "\n".join(lines)
 
     def _add_element_properties(self, lines: List[str], elements: List[Dict[str, Any]]) -> None:
-        """Add element properties to class.
+        """Add element properties to class with filtering and deduplication.
+
+        Filters out generic containers and deduplicates locators using nth().
+        Groups properties by DOM sections.
 
         Args:
             lines: List of code lines to append to
             elements: List of HTML elements
         """
-        # Generate names for all elements
-        element_names = []
-        for elem in elements:
-            name = generate_name_from_attributes(elem)
-            if name:
-                element_names.append(name)
-            else:
-                element_names.append(elem.get("tag", "element"))
+        # Filter elements: skip generic containers
+        filtered_elements = [
+            elem for elem in elements
+            if is_meaningful_container(elem)
+        ]
 
-        # Handle duplicate names - returns mapping from index to unique name
-        name_mapping = handle_duplicate_names(element_names)
+        # Handle duplicate locators and collect info
+        locator_info_list = self._process_element_locators(filtered_elements)
 
-        # Group elements by type for comments
-        prev_type = None
-        for i, element in enumerate(elements):
-            tag = element.get("tag", "element")
+        # Group by section and generate code
+        self._generate_grouped_properties(lines, locator_info_list)
 
-            # Add section comment if type changed
-            if prev_type != tag:
-                if prev_type is not None:
-                    lines.append("")  # Blank line between sections
-                lines.append(f"        # {self._get_type_label(tag)}")
-                prev_type = tag
-
-            # Generate locator
-            locator = self.locator_selector.select_locator(element)
-            if locator is None:
-                continue
-
-            # Get unique name for this element (from index mapping)
-            unique_name = name_mapping[i]
-
-            # Validate and fix the name
-            unique_name = self._validate_property_name(unique_name)
-
-            # Generate property assignment
-            prop_line = self._generate_property_assignment(unique_name, locator)
-            lines.append(f"        {prop_line}")
-
-    def _generate_property_assignment(self, prop_name: str, locator: Dict[str, Any]) -> str:
-        """Generate a property assignment line.
-
-        Args:
-            prop_name: Property name
-            locator: Locator dictionary
-
-        Returns:
-            Property assignment code line
-        """
-        method = locator.get("method", "locator")
-
-        # Build locator call
-        if method == "get_by_role":
-            role = locator.get("role")
-            name = locator.get("name")
-            if name:
-                locator_call = f'page.get_by_role("{role}", name="{name}")'
-            else:
-                locator_call = f'page.get_by_role("{role}")'
-
-        elif method == "get_by_label":
-            label = locator.get("label")
-            locator_call = f'page.get_by_label("{label}")'
-
-        elif method == "get_by_placeholder":
-            placeholder = locator.get("placeholder")
-            locator_call = f'page.get_by_placeholder("{placeholder}")'
-
-        elif method == "get_by_text":
-            text = locator.get("text")
-            locator_call = f'page.get_by_text("{text}", exact=True)'
-
-        elif method == "locator":
-            selector = locator.get("selector")
-            locator_call = f'page.locator("{selector}")'
-
-        else:
-            locator_call = 'page.locator("*")'  # Fallback
-
-        # Add comment if disabled
-        comment = ""
-        if locator.get("disabled"):
-            comment = "  # disabled"
-
-        return f"self.{prop_name} = {locator_call}{comment}"
 
     def _humanize_class_name(self, class_name: str) -> str:
         """Convert PascalCase class name to human-readable form.
@@ -311,6 +241,199 @@ class PageObjectGenerator:
 
         return name
 
+    def _process_element_locators(self, elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Process elements to generate locators, handling duplicates and deduplication.
+
+        Args:
+            elements: Filtered list of HTML elements
+
+        Returns:
+            List of dicts with element info and locator
+        """
+        result = []
+        used_locators = {}  # Maps locator string → list of indices using it
+
+        # First pass: generate locators for all elements
+        locators_by_element = []
+        element_names = []
+
+        for elem in elements:
+            locator = self.locator_selector.select_locator(elem)
+            if locator is None:
+                locators_by_element.append(None)
+                element_names.append(None)
+                continue
+
+            # Generate name
+            name = generate_name_from_attributes(elem)
+            if not name:
+                name = elem.get("tag", "element")
+
+            locators_by_element.append(locator)
+            element_names.append(name)
+
+        # Handle duplicate names
+        name_mapping = handle_duplicate_names(element_names)
+
+        # Second pass: handle duplicate locators using nth()
+        locator_string_map = {}  # Maps locator string → count
+        for i, locator in enumerate(locators_by_element):
+            if locator is None:
+                continue
+
+            locator_str = self._locator_to_string(locator)
+            if locator_str not in locator_string_map:
+                locator_string_map[locator_str] = 0
+            locator_string_map[locator_str] += 1
+
+        # Reset and assign nth() indices
+        locator_occurrence = {}  # Maps locator string → current occurrence
+        for i, locator in enumerate(locators_by_element):
+            if locator is None:
+                continue
+
+            locator_str = self._locator_to_string(locator)
+            total_occurrences = locator_string_map[locator_str]
+
+            if total_occurrences > 1:
+                if locator_str not in locator_occurrence:
+                    locator_occurrence[locator_str] = 0
+                current_index = locator_occurrence[locator_str]
+                locator_occurrence[locator_str] += 1
+
+                # Add nth() to make unique
+                locator_with_nth = dict(locator)
+                locator_with_nth["nth"] = current_index
+                locator = locator_with_nth
+
+            # Get unique name
+            unique_name = name_mapping[i]
+            unique_name = self._validate_property_name(unique_name)
+
+            result.append({
+                "element": elements[i],
+                "locator": locator,
+                "name": unique_name,
+                "tag": elements[i].get("tag"),
+            })
+
+        return result
+
+    def _locator_to_string(self, locator: Dict[str, Any]) -> str:
+        """Convert locator dict to string for comparison.
+
+        Args:
+            locator: Locator dictionary
+
+        Returns:
+            String representation of locator
+        """
+        method = locator.get("method", "locator")
+        if method == "get_by_role":
+            return f"role:{locator.get('role')}:{locator.get('name', '')}"
+        elif method == "get_by_label":
+            return f"label:{locator.get('label', '')}"
+        elif method == "get_by_placeholder":
+            return f"placeholder:{locator.get('placeholder', '')}"
+        elif method == "get_by_text":
+            return f"text:{locator.get('text', '')}"
+        elif method == "locator":
+            return f"selector:{locator.get('selector', '')}"
+        return str(locator)
+
+    def _generate_grouped_properties(self, lines: List[str], locator_info_list: List[Dict[str, Any]]) -> None:
+        """Generate properties grouped by DOM sections.
+
+        Args:
+            lines: List of code lines to append to
+            locator_info_list: List of element info dicts
+        """
+        if not locator_info_list:
+            return
+
+        # Identify section boundaries based on tags
+        sections = self._identify_sections(locator_info_list)
+
+        prev_section = None
+        for info in locator_info_list:
+            section = self._get_section_for_element(info["element"])
+
+            # Add section comment if changed
+            if section != prev_section:
+                if prev_section is not None:
+                    lines.append("")  # Blank line between sections
+                lines.append(f"        # {section}")
+                prev_section = section
+
+            # Generate property assignment
+            prop_line = self._generate_property_assignment_with_nth(
+                info["name"],
+                info["locator"]
+            )
+            lines.append(f"        {prop_line}")
+
+    def _identify_sections(self, locator_info_list: List[Dict[str, Any]]) -> List[str]:
+        """Identify logical sections in the page.
+
+        Args:
+            locator_info_list: List of element info dicts
+
+        Returns:
+            List of section names
+        """
+        sections = []
+        for info in locator_info_list:
+            section = self._get_section_for_element(info["element"])
+            if section not in sections:
+                sections.append(section)
+        return sections
+
+    def _get_section_for_element(self, element: Dict[str, Any]) -> str:
+        """Determine which section an element belongs to.
+
+        Args:
+            element: Element dictionary
+
+        Returns:
+            Section name (Header, Main, Footer, etc.)
+        """
+        tag = element.get("tag", "").lower()
+
+        # Check for explicit section/nav/header/footer tags
+        if tag == "header":
+            return "Header"
+        if tag == "footer":
+            return "Footer"
+        if tag == "nav":
+            return "Navigation"
+        if tag == "main":
+            return "Main Content"
+        if tag == "section":
+            return f"Section ({element.get('id', 'unnamed')})"
+        if tag == "article":
+            return f"Article ({element.get('id', 'unnamed')})"
+
+        # Check class names for section hints
+        classes = element.get("class", [])
+        if isinstance(classes, str):
+            classes = classes.split()
+
+        for cls in classes:
+            cls_lower = cls.lower()
+            if "header" in cls_lower or "nav" in cls_lower:
+                return "Header"
+            if "footer" in cls_lower:
+                return "Footer"
+            if "hero" in cls_lower or "banner" in cls_lower:
+                return "Hero Section"
+            if "form" in cls_lower:
+                return "Forms"
+            if "modal" in cls_lower or "dialog" in cls_lower:
+                return "Modals"
+
+        # Default to element type
+        return self._get_type_label(tag)
+
     def _associate_labels(self, elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Associate label text with inputs based on for attribute.
 
@@ -337,3 +460,56 @@ class PageObjectGenerator:
                     elem["aria-label"] = label_map[input_id]
 
         return elements
+
+    def _generate_property_assignment_with_nth(self, prop_name: str, locator: Dict[str, Any]) -> str:
+        """Generate property assignment, handling nth() for duplicates.
+
+        Args:
+            prop_name: Property name
+            locator: Locator dictionary (may have 'nth' key)
+
+        Returns:
+            Property assignment code line
+        """
+        nth_index = locator.pop("nth", None)
+
+        # Generate base locator call
+        method = locator.get("method", "locator")
+
+        if method == "get_by_role":
+            role = locator.get("role")
+            name = locator.get("name")
+            if name:
+                locator_call = f'page.get_by_role("{role}", name="{name}")'
+            else:
+                locator_call = f'page.get_by_role("{role}")'
+
+        elif method == "get_by_label":
+            label = locator.get("label")
+            locator_call = f'page.get_by_label("{label}")'
+
+        elif method == "get_by_placeholder":
+            placeholder = locator.get("placeholder")
+            locator_call = f'page.get_by_placeholder("{placeholder}")'
+
+        elif method == "get_by_text":
+            text = locator.get("text")
+            locator_call = f'page.get_by_text("{text}", exact=True)'
+
+        elif method == "locator":
+            selector = locator.get("selector")
+            locator_call = f'page.locator("{selector}")'
+
+        else:
+            locator_call = 'page.locator("*")'
+
+        # Add nth() if needed
+        if nth_index is not None:
+            locator_call = f"{locator_call}.nth({nth_index})"
+
+        # Add comment if disabled
+        comment = ""
+        if locator.get("disabled"):
+            comment = "  # disabled"
+
+        return f"self.{prop_name} = {locator_call}{comment}"

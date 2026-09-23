@@ -286,3 +286,65 @@ def format_code_line(code: str, indent: int = 0) -> str:
     # Add indentation (4 spaces per level)
     indentation = "    " * indent
     return indentation + code
+
+
+def is_meaningful_container(element: Dict) -> bool:
+    """Determine if a container (div, span) is meaningful or generic.
+
+    Generic containers without unique identifiers are filtered out.
+    Meaningful containers have component-specific classes or semantic meaning.
+
+    Args:
+        element: Element dictionary
+
+    Returns:
+        True if container should be included in Page Object
+    """
+    tag = element.get("tag", "").lower()
+
+    # Only apply filtering to div and span
+    if tag not in ("div", "span"):
+        return True
+
+    # Has id or data-testid → meaningful
+    if element.get("id") or element.get("data-testid"):
+        return True
+
+    # Check class names for meaningful components
+    classes = element.get("class", [])
+    if isinstance(classes, str):
+        classes = classes.split()
+
+    if not classes:
+        return False
+
+    meaningful_patterns = {
+        "dropdown", "modal", "dialog", "alert", "toast",
+        "menu", "navigation", "sidebar", "nav",
+        "header", "footer", "main",
+        "card", "panel", "section", "container",
+        "form", "input", "button",
+        "list", "item", "row", "col",
+        "wrapper", "content", "inner",
+        "popup", "overlay", "backdrop",
+        "tabs", "tab", "accordion",
+        "carousel", "slider", "gallery",
+        "breadcrumb", "pagination", "search",
+        "filter", "sort", "group",
+    }
+
+    for cls in classes:
+        cls_lower = cls.lower()
+        for pattern in meaningful_patterns:
+            if pattern in cls_lower:
+                return True
+
+    # Has aria-label or aria-describedby → meaningful
+    if element.get("aria-label") or element.get("aria-describedby"):
+        return True
+
+    # Has role → meaningful
+    if element.get("role"):
+        return True
+
+    return False
